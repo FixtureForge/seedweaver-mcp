@@ -1,0 +1,40 @@
+{
+  "name": "seedweaver-mcp",
+  "version": "0.1.0",
+  "description": "Schema-aware relational test data generator MCP server. Generate coherent fake seed data from your real database schema — foreign keys that resolve, unique constraints respected, realistic values. For Claude, Cursor, and any MCP client.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "test-data",
+    "seed-data",
+    "mock-data",
+    "fake-data",
+    "database",
+    "sql",
+    "fixtures",
+    "claude",
+    "cursor"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "seedweaver-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@faker-js/faker": "^9.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}
