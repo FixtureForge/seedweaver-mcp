@@ -7,26 +7,81 @@ import { generate, toSQL, toJSON, toCSV } from "./generator.js";
 import { OutputFormat } from "./types.js";
 
 // ---- Freemium gate --------------------------------------------------------
-// Free tier limits. A valid license key (set via SEEDWEAVER_LICENSE env var)
-// unlocks Pro. License validation is intentionally a stub here — wire it to
-// your license provider (Gumroad/Lemon Squeezy license API, or a signed key)
-// before launch. For now any non-empty key unlocks Pro so you can test both paths.
+// Free tier limits. A valid Gumroad license key (set via SEEDWEAVER_LICENSE
+// env var) unlocks Pro. The key is verified against Gumroad's license API for
+// both the monthly and lifetime products.
 const FREE_MAX_TABLES = 2;
 const FREE_MAX_ROWS = 50;
 const FREE_FORMATS: OutputFormat[] = ["sql", "json"];
 
-function isPro(): boolean {
-  const key = process.env.SEEDWEAVER_LICENSE;
-  return !!key && key.trim().length > 0;
-  // TODO: replace with real validation, e.g. verify against Gumroad license API.
+// Gumroad product IDs (public identifiers, safe to ship): monthly + lifetime.
+const PRODUCT_IDS = [
+  "AtK8Qk6RAH8RCGnfNy_Rsw==", // SeedWeaver Pro — Monthly
+  "yg-gC6qDr1uu90l_roa1kg==", // SeedWeaver Pro — Lifetime
+];
+
+const PRO_URL = "https://fixtureforge.gumroad.com/l/seedweaver";
+
+// Cache the resolved Pro status for the process lifetime to avoid re-hitting
+// Gumroad on every tool call.
+let proStatusCache: boolean | null = null;
+
+async function verifyKeyAgainstProduct(
+  productId: string,
+  licenseKey: string
+): Promise<boolean> {
+  const body = new URLSearchParams();
+  body.append("product_id", productId);
+  body.append("license_key", licenseKey);
+  // Don't inflate the activation counter on routine checks.
+  body.append("increment_uses_count", "false");
+  const res = await fetch("https://api.gumroad.com/v2/licenses/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  if (res.status === 404) return false; // key not valid for this product
+  const data: any = await res.json();
+  if (!data || data.success !== true) return false;
+  const p = data.purchase || {};
+  // Reject refunded, disputed, or charged-back purchases.
+  if (p.refunded || p.chargebacked || p.disputed) return false;
+  // Reject ended or payment-failed subscriptions (a cancelled-but-still-paid
+  // subscription stays valid until it actually ends).
+  if (p.subscription_ended_at || p.subscription_failed_at) return false;
+  return true;
 }
 
-const PRO_URL = "https://your-gumroad-url.gumroad.com/l/seedweaver"; // placeholder
+async function isPro(): Promise<boolean> {
+  if (proStatusCache !== null) return proStatusCache;
+  const key = process.env.SEEDWEAVER_LICENSE;
+  if (!key || key.trim().length === 0) {
+    proStatusCache = false;
+    return false;
+  }
+  const trimmed = key.trim();
+  try {
+    for (const pid of PRODUCT_IDS) {
+      if (await verifyKeyAgainstProduct(pid, trimmed)) {
+        proStatusCache = true;
+        return true;
+      }
+    }
+    // Key present but not valid for any product → definitively free.
+    proStatusCache = false;
+    return false;
+  } catch {
+    // Network/Gumroad failure: don't lock out a paying customer over a
+    // transient error. Grant Pro for this session but don't cache, so it
+    // re-checks next run.
+    return true;
+  }
+}
 
 // ---- Server ---------------------------------------------------------------
 const server = new McpServer({
   name: "seedweaver",
-  version: "0.1.0",
+  version: "0.2.0",
 });
 
 server.tool(
@@ -96,7 +151,7 @@ server.tool(
   async ({ schema, rows, format, seed }) => {
     try {
       const parsed = parseSchema(schema);
-      const pro = isPro();
+      const pro = await isPro();
       const fmt: OutputFormat = format ?? "sql";
       const defaultRows = rows ?? 10;
       const notices: string[] = [];

@@ -1,6 +1,6 @@
 {
   "name": "seedweaver-mcp",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "mcpName": "io.github.FixtureForge/seedweaver-mcp",
   "description": "Schema-aware relational test data generator MCP server. Generate coherent fake seed data from your real database schema — foreign keys that resolve, unique constraints respected, realistic values. For Claude, Cursor, and any MCP client.",
   "keywords": [
