@@ -1,0 +1,20 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      seedweaverLicense:
+        type: string
+        title: "SeedWeaver Pro license key"
+        description: "Optional. Provide your Pro license key to unlock unlimited tables/rows, CSV output, and deterministic seeds. Leave blank for the free tier."
+    required: []
+  commandFunction: |-
+    (config) => ({
+      command: "npx",
+      args: ["-y", "seedweaver-mcp"],
+      env: config.seedweaverLicense
+        ? { SEEDWEAVER_LICENSE: config.seedweaverLicense }
+        : {}
+    })
+  exampleConfig:
+    seedweaverLicense: ""
